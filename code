@@ -1,0 +1,91 @@
+from flask import Flask, render_template, request
+import folium
+from geopy.distance import geodesic
+
+app = Flask(_name_)
+
+kanpur_locations = {
+    "Kanpur Central Railway Station": (80.347013, 26.447778),
+    "IIT Kanpur": (80.2329, 26.5123),
+    "Z Square Mall": (80.331909, 26.478728),
+    "Green Park Stadium": (80.3584, 26.4719),
+    "JK Temple": (80.3154, 26.4586),
+    "Nana Rao Park": (80.3401, 26.4596),
+    "Allen Forest Zoo": (80.2804, 26.4824),
+    "Moti Jheel": (80.3046, 26.4769),
+    "Kanpur University": (80.2785, 26.4071),
+    "Hallet Hospital": (80.3266, 26.4551),
+    "Ganga Barrage": (80.3736, 26.4589),
+    "Phool Bagh": (80.3446, 26.4655),
+    "Jajmau Tannery Area": (80.4122, 26.4295),
+    "Kanpur Memorial Church": (80.3433, 26.4603),
+    "ISKCON Temple": (80.3177, 26.5045),
+    "Massacre Ghat": (80.3685, 26.4758),
+    "Kamla Retreat": (80.3459, 26.4764),
+    "Bithoor": (80.2762, 26.6485),
+    "Gareeb Nawaz Mosque": (80.3471, 26.4491),
+    "Rave 3 Mall": (80.3199, 26.4667),
+}
+
+water_availability_points = {
+    "Water Refill Point 1": (80.335, 26.445),
+    "Water Refill Point 2": (80.350, 26.480),
+    "Water Refill Point 3": (80.320, 26.470),
+    "Water Refill Point 4": (80.360, 26.460),
+    "Water Refill Point 5": (80.340, 26.452),
+}
+
+def nearest_neighbor_route(start, end, locations):
+    unvisited = list(locations.values())
+    route = [start]
+    current_location = start
+    while unvisited:
+        next_location = min(unvisited, key=lambda loc: geodesic(current_location, loc).meters)
+        route.append(next_location)
+        current_location = next_location
+        unvisited.remove(next_location)
+    route.append(end)
+    return route
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    start_location = end_location = None
+    map_html = ""
+
+    if request.method == 'POST':
+        start_name = request.form.get('start_location')
+        end_name = request.form.get('end_location')
+        
+        if start_name in kanpur_locations and end_name in kanpur_locations:
+            start_location = kanpur_locations[start_name]
+            end_location = kanpur_locations[end_name]
+
+            m = folium.Map(location=[26.4499, 80.3319], tiles="cartodbpositron", zoom_start=13)
+            for location_name, coords in kanpur_locations.items():
+                folium.Marker(
+                    location=[coords[1], coords[0]],
+                    popup=location_name,
+                    icon=folium.Icon(color="green" if coords not in [start_location, end_location] else "red")
+                ).add_to(m)
+
+            for point_name, point_coords in water_availability_points.items():
+                folium.Marker(
+                    location=[point_coords[1], point_coords[0]],
+                    popup=point_name,
+                    icon=folium.Icon(color="blue", icon="tint", prefix="fa")
+                ).add_to(m)
+
+            optimized_route = nearest_neighbor_route(start_location, end_location, kanpur_locations)
+            for i in range(len(optimized_route) - 1):
+                folium.PolyLine(
+                    locations=[(optimized_route[i][1], optimized_route[i][0]), (optimized_route[i + 1][1], optimized_route[i + 1][0])],
+                    color="blue",
+                    weight=3,
+                ).add_to(m)
+
+            map_html = m.repr_html()
+
+    return render_template('index.html', kanpur_locations=kanpur_locations, map_html=map_html)
+
+if _name_ == '_main_':
+    app.run(debug=True)
